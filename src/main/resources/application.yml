@@ -1,0 +1,17 @@
+spring:
+  application:
+    name: spring-ai-integration-starter
+  ai:
+    model:
+      chat: ollama
+    ollama:
+      base-url: http://localhost:11434
+      chat:
+        model: llama3.2:3b
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+server:
+  port: ${PORT:8080}
