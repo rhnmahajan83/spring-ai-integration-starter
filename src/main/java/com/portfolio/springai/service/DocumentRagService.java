@@ -21,7 +21,7 @@ public class DocumentRagService {
     private static final int CHUNK_SIZE = 1200;
     private static final int OVERLAP = 150;
     private static final String NO_ANSWER = "I cannot find that information in the uploaded documents.";
-    private static final Pattern CITATION = Pattern.compile("\\\\[Source\\\\s+(\\\\d+)\\\\]");
+    private static final Pattern CITATION = Pattern.compile("\\[Source\\s+(\\d+)\\]");
     private final JdbcTemplate jdbc;
     @Value("${app.rag.min-similarity:0.55}")
     private double minSimilarity;
