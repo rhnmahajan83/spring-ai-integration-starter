@@ -36,7 +36,7 @@ Small models such as `qwen2.5:1.5b` may not consistently invoke tools. Validate 
 
 ## Tool tracing and reliable lookup
 - `/api/v1/orders/ask` demonstrates autonomous LLM tool selection. Console logs show `ORDER ASK completed: toolInvoked=...`, tool name, tool duration, request duration, and success.
-- `/api/v1/orders/ask-reliable` extracts an `ORD-1234` identifier and calls the Java order tool **before** asking the LLM to explain the record. It returns the verified record if the LLM errors, returns an empty answer, or omits the order ID. It does not guarantee detection of every possible model hallucination.
+- `/api/v1/orders/ask-reliable` extracts all distinct `ORD-1234` identifiers and retrieves each record on the bounded-elastic scheduler. For multiple orders it returns verified records directly, preventing the LLM from dropping an order. For a single known order it asks the LLM to explain the record, falling back to verified facts if the LLM errors, returns an empty answer, or omits the order ID. It does not guarantee detection of every possible model hallucination.
 - The model temperature is set to `0.0`; tool selection may still vary.
 - Micrometer metrics: `GET /actuator/metrics/ai.order.tool.invocations`, `GET /actuator/metrics/ai.order.tool.duration`, and `GET /actuator/metrics/ai.order.requests`.
 - This demo logs order IDs. Avoid logging sensitive business identifiers in production.
