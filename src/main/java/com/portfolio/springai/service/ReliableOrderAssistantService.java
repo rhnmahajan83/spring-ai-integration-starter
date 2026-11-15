@@ -8,8 +8,10 @@ import org.springframework.stereotype.Service;
 import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Schedulers;
 
-import java.util.regex.Matcher;
+import java.util.List;
+import java.util.Locale;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 @Service
 public class ReliableOrderAssistantService {
@@ -25,35 +27,49 @@ public class ReliableOrderAssistantService {
     }
 
     public Mono<String> ask(String question) {
-        Matcher matcher = ORDER_ID.matcher(question);
-        if (!matcher.find()) {
-            return Mono.just("Please include an order ID such as ORD-1001.");
-        }
-
-        String orderId = matcher.group().toUpperCase(java.util.Locale.ROOT);
-        // Retrieve business data in Java, regardless of the model's tool-selection behavior.
-        String facts = orderTools.getOrderStatus(orderId);
-        if (facts.startsWith("No order found")) {
-            return Mono.just(facts);
-        }
-
         return Mono.fromCallable(() -> {
-                    try {
-                        String explanation = chatClient.prompt()
-                                .system("Explain the supplied order record clearly and briefly. Use only the supplied facts. Do not invent additional details. Do not ask for an order ID.")
-                                .user("Question: " + question + "\nVerified order record: " + facts)
-                                .call().content();
-                        if (explanation == null || explanation.isBlank()
-                                || !explanation.contains(orderId)) {
-                            log.warn("Model returned an incomplete order explanation for {}; using verified facts", orderId);
-                            return facts;
-                        }
-                        return explanation;
-                    } catch (Exception ex) {
-                        log.warn("Model explanation failed for {}; using verified facts: {}", orderId, ex.toString());
-                        return facts;
-                    }
-                })
-                .subscribeOn(Schedulers.boundedElastic());
+            List<String> orderIds = ORDER_ID.matcher(question)
+                    .results()
+                    .map(match -> match.group().toUpperCase(Locale.ROOT))
+                    .distinct()
+                    .toList();
+
+            if (orderIds.isEmpty()) {
+                return "Please include an order ID such as ORD-1001.";
+            }
+
+            // Always retrieve every distinct order in the user's original order.
+            String verifiedFacts = orderIds.stream()
+                    .map(orderTools::getOrderStatus)
+                    .collect(Collectors.joining("\n"));
+
+            // Multiple orders are returned directly: no LLM can accidentally omit one.
+            if (orderIds.size() > 1) {
+                log.info("Reliable order lookup returned {} distinct records", orderIds.size());
+                return verifiedFacts;
+            }
+
+            String orderId = orderIds.get(0);
+            if (verifiedFacts.startsWith("No order found")) {
+                return verifiedFacts;
+            }
+
+            try {
+                String explanation = chatClient.prompt()
+                        .system("Explain the supplied order record clearly and briefly. Use only the supplied facts. Never invent details or ask for an order ID. Include the order ID in your response.")
+                        .user("Question: " + question + "\nVerified order record: " + verifiedFacts)
+                        .call().content();
+                if (explanation == null || explanation.isBlank()
+                        || !explanation.toUpperCase(Locale.ROOT).contains(orderId)) {
+                    log.warn("Model explanation missing required order ID {}; falling back to verified facts (empty={})",
+                            orderId, explanation == null || explanation.isBlank());
+                    return verifiedFacts;
+                }
+                return explanation;
+            } catch (Exception ex) {
+                log.warn("Model explanation failed for {}; using verified facts: {}", orderId, ex.toString());
+                return verifiedFacts;
+            }
+        }).subscribeOn(Schedulers.boundedElastic());
     }
 }
