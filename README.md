@@ -53,6 +53,25 @@ curl -X DELETE http://localhost:8080/api/v1/orders/conversations/YOUR_ID
 ```
 The new conversation endpoint uses a bounded in-memory Java session store (last 10 turns), isolated by unguessable conversation IDs. It resolves explicit order IDs and a small set of follow-up references, then deterministically retrieves the records. **This is application-level conversation memory, not Spring AI ChatMemory or a general-purpose LLM conversation agent.** The existing `/ask` and `/ask-reliable` endpoints are unchanged. Memory disappears on restart, is not shared across app instances, and has no authentication, expiry, or total-session limit; do not expose it publicly without those protections.
 
+## Document RAG (PDF/TXT + Ollama + pgvector)
+Requires Docker, PostgreSQL with pgvector, and Ollama's embedding model. Run before starting Spring Boot:
+```bash
+ollama pull qwen2.5:1.5b
+ollama pull nomic-embed-text
+docker compose up -d
+gradle bootRun
+```
+`nomic-embed-text` produces 768-dimensional vectors; the demo schema is fixed at 768. If changing embedding models, migrate the vector column and re-index documents. PostgreSQL settings default to `localhost:5432/springai` with demo credentials `springai/springai` and can be overridden using `DB_URL`, `DB_USER`, and `DB_PASSWORD`.
+
+Upload a searchable PDF or UTF-8 text file (up to 10 MB):
+```bash
+curl -X POST http://localhost:8080/api/v1/documents/upload -F 'file=@sample.txt'
+curl -X POST http://localhost:8080/api/v1/documents/ask -H 'Content-Type: application/json' -d '{"question":"What does the installation SOP say about delayed appointments?"}'
+```
+The response includes `response` and `sources` (document ID, filename, chunk index, excerpt). The pipeline extracts text, splits into overlapping chunks, embeds locally, persists in pgvector, retrieves the four nearest chunks by cosine distance, and prompts Qwen to answer with source labels. Scanned PDFs without selectable text need OCR and are not supported. The current retrieval has no minimum relevance threshold, and LLM citations are not independently verified; don't treat answers as authoritative without checking the returned source excerpts.
+
+This demo initializes its tables at startup and requires a working database even when only using older endpoints. It has no authentication, per-user document isolation, migration management, or vector index optimization. Secure these before production use.
+
 ## Gradle commands
 ```bash
 gradle clean build
@@ -64,7 +83,7 @@ A Gradle wrapper is not included. Generate one with `gradle wrapper --gradle-ver
 
 ## Roadmap
 - Persistent conversation memory
-- RAG with pgvector
+- Improve RAG retrieval quality, relevance thresholds and integration tests
 - Observability and request metrics
 - Authentication, rate limits, and integration tests
 
