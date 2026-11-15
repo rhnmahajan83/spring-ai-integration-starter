@@ -6,11 +6,18 @@ spring:
       chat: ollama
     ollama:
       base-url: http://localhost:11434
+      embedding:
+        options:
+          model: nomic-embed-text
       chat:
         options:
           model: qwen2.5:1.5b
           temperature: 0.0
           num-ctx: 2048
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/springai}
+    username: ${DB_USER:springai}
+    password: ${DB_PASSWORD:springai}
 management:
   endpoints:
     web:
