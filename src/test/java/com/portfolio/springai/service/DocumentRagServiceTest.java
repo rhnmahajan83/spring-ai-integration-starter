@@ -1,17 +1,33 @@
 package com.portfolio.springai.service;
 
 import org.junit.jupiter.api.Test;
-
 import static org.junit.jupiter.api.Assertions.*;
 
 class DocumentRagServiceTest {
     @Test
-    void splitsLongDocumentsWithOverlap() {
-        String input = "a".repeat(2500);
-        var chunks = DocumentRagService.split(input);
-        assertEquals(3, chunks.size());
-        assertEquals(1200, chunks.get(0).length());
-        assertEquals(chunks.get(0).substring(1050), chunks.get(1).substring(0, 150));
+    void splitsAtSentenceBoundaries() {
+        String sentence = "The engineer has experience with Spring Boot and React. ";
+        var chunks = DocumentRagService.split(sentence.repeat(40));
+        assertTrue(chunks.size() > 1);
+        assertTrue(chunks.stream().allMatch(s -> s.length() <= 1200));
+        assertTrue(chunks.stream().allMatch(s -> s.endsWith(".")));
+        assertTrue(chunks.stream().allMatch(s -> !s.startsWith("ngineer")));
+    }
+
+    @Test
+    void splitsLongUnpunctuatedTextOnWords() {
+        var chunks = DocumentRagService.split("enterprise ".repeat(300));
+        assertTrue(chunks.size() > 1);
+        assertTrue(chunks.stream().allMatch(s -> s.length() <= 1200));
+        assertTrue(chunks.stream().allMatch(s -> s.startsWith("enterprise")));
+    }
+
+    @Test
+    void validatesSourceNumbers() {
+        assertEquals("Experience [Source 1] and education.",
+                DocumentRagService.validateCitations("Experience [Source 1] and education [Source 9].", 2));
+        assertEquals("I cannot find that information in the uploaded documents.",
+                DocumentRagService.validateCitations("", 2));
     }
 
     @Test
