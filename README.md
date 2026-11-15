@@ -41,6 +41,18 @@ Small models such as `qwen2.5:1.5b` may not consistently invoke tools. Validate 
 - Micrometer metrics: `GET /actuator/metrics/ai.order.tool.invocations`, `GET /actuator/metrics/ai.order.tool.duration`, and `GET /actuator/metrics/ai.order.requests`.
 - This demo logs order IDs. Avoid logging sensitive business identifiers in production.
 
+## Conversation memory (local demo)
+Start a conversation, then reuse its ID for follow-ups:
+```bash
+curl -X POST http://localhost:8080/api/v1/orders/conversations
+# Copy conversationId from the JSON response
+curl -X POST http://localhost:8080/api/v1/orders/conversations/YOUR_ID/messages -H 'Content-Type: application/json' -d '{"message":"Status of ORD-1001 and ORD-1002?"}'
+curl -X POST http://localhost:8080/api/v1/orders/conversations/YOUR_ID/messages -H 'Content-Type: application/json' -d '{"message":"Which one is delayed?"}'
+curl http://localhost:8080/api/v1/orders/conversations/YOUR_ID
+curl -X DELETE http://localhost:8080/api/v1/orders/conversations/YOUR_ID
+```
+The new conversation endpoint uses a bounded in-memory Java session store (last 10 turns), isolated by unguessable conversation IDs. It resolves explicit order IDs and a small set of follow-up references, then deterministically retrieves the records. **This is application-level conversation memory, not Spring AI ChatMemory or a general-purpose LLM conversation agent.** The existing `/ask` and `/ask-reliable` endpoints are unchanged. Memory disappears on restart, is not shared across app instances, and has no authentication, expiry, or total-session limit; do not expose it publicly without those protections.
+
 ## Gradle commands
 ```bash
 gradle clean build
