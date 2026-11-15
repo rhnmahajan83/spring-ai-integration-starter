@@ -9,12 +9,12 @@ spring:
       chat:
         options:
           model: qwen2.5:1.5b
-          temperature: 0.3
+          temperature: 0.0
           num-ctx: 2048
 management:
   endpoints:
     web:
       exposure:
-        include: health,info
+        include: health,info,metrics
 server:
   port: ${PORT:8080}
