@@ -1,0 +1,13 @@
+services:
+  postgres:
+    image: pgvector/pgvector:pg17
+    environment:
+      POSTGRES_DB: springai
+      POSTGRES_USER: springai
+      POSTGRES_PASSWORD: springai
+    ports:
+      - "5432:5432"
+    volumes:
+      - springai_pgdata:/var/lib/postgresql/data
+volumes:
+  springai_pgdata:
